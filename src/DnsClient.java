@@ -4,67 +4,120 @@ import java.util.*;
 
 public class DnsClient
 {
+    static int iTimeout = 5;
+    static int iMaxRetries = 3;
+    static int iPort = 53;
+    static String sType = "A";
+    static String sIp = null;
+    static String sServerName = null;
+    static InetAddress ipAddress = null;
+
     public static void main(String[] args) throws IOException
     {
-
-        BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in)); // open stream to read client's input
         DatagramSocket clientSocket = new DatagramSocket(); // establish socket
 
         byte[] sendData = new byte[1024];
         byte[] receiveData = new byte[1024];
 
-        //Parse Arguments Implementation
+        ParseArguments(args, clientSocket); // parse arguments read flags
 
-        String sIp = args[0]; // hard coded for now I just want to get this going
-        String sQueryType = args[1];
-        String sServerName = args[2];
+        byte[] queryHeader = BuildQueryHeader(); //build query header
 
-        String[] ipSplit = sIp.substring(1).split("\\."); // split with commas and remove @
-        byte[] ipByteArray = new byte[ipSplit.length]; // iPV4 is always 32 bits so we'll need 4 bytes
-        for (int i = 0; i < ipSplit.length; i++)
-        {
-            ipByteArray[i] = (byte) Integer.parseInt(ipSplit[i]);
-        }
-        InetAddress ipAddress = InetAddress.getByAddress(ipByteArray);
-
-        // End of parsing args implementation note annabelle je devrais move ca dans une methode separee
-
-        byte[] header = BuildHeader();
-
-        // Beginning DNS Questions
-        byte[] questionBytes = BuildDNSQuestion(sServerName, sQueryType);
+        byte[] questionBytes = BuildDNSQuestion(sServerName, sType); // build DNS question
 
         // header + question
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
-        outputStream.write(header);
+        outputStream.write(queryHeader);
         outputStream.write(questionBytes);
 
         sendData = outputStream.toByteArray();
 
         // Send the data
-        DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, ipAddress, 53);
-        clientSocket.send(sendPacket);
-        System.out.printf("DnsClient sending request for %s\nServer: %s\nRequest Type: %s\n", sServerName, sIp, sQueryType);
+        int tryCount = 0; // keep track of number of tries
+        DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, ipAddress, iPort);
+        DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);  //Receive Data
 
-        //Receive Data
-        DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-        clientSocket.receive(receivePacket);
+        while (tryCount < iMaxRetries)
+        {
+            try
+            {
+                clientSocket.send(sendPacket);
+                System.out.printf("DnsClient sending request for %s\nServer: %s\nRequest Type: %s\n", sServerName, sIp, sType);
+                clientSocket.receive(receivePacket);
+                break;
+            }
+            catch (SocketTimeoutException e)
+            {
+                tryCount++;
+                System.out.printf("Timeout reached, retry %d\n", tryCount);
+            }
+        }
 
-        // Interpret Data
-        ParseAnswer(receiveData);
+        // Interpret Data TO-DO
+
 
         //PRINTING RAW RESPONSE FOR TESTING PURPOSES
         int length = receivePacket.getLength();
         System.out.println("Received " + length + " bytes");
         for (int i = 0; i < length; i++) {
             System.out.printf("%02X ", receiveData[i]);
-            if ((i + 1) % 16 == 0) System.out.println();
+            if ((i + 1) % 16 == 0)
+            {
+                System.out.println();
+            }
         }
 
         clientSocket.close();
     }
 
-    public static byte[] BuildHeader()
+    public static void ParseArguments(String[] args, DatagramSocket clientSocket) throws UnknownHostException, SocketException {
+        for (int i = 0; i < args.length; i++)
+        {
+            switch (args[i])
+            {
+                case "-t":
+                    iTimeout = Integer.parseInt(args[++i]); // skip flag arg
+                    break;
+                case "-r":
+                    iMaxRetries = Integer.parseInt(args[++i]);
+                    break;
+                case "-p":
+                    iPort = Integer.parseInt(args[++i]);
+                    break;
+                case "-mx":
+                    sType = "-mx";
+                    break;
+                case "-ns":
+                    sType = "-ns";
+                    break;
+                default:
+                    if (args[i].startsWith("@") && sIp == null)
+                    {
+                        sIp = args[i];
+                    }
+                    else if (sServerName == null)
+                    {
+                        sServerName = args[i];
+                    }
+            }
+        }
+
+        clientSocket.setSoTimeout(iTimeout * 1000); // convert to milliseconds
+
+        if (sIp != null)
+        {
+            String[] ipSplit = sIp.substring(1).split("\\."); // split with commas and remove @
+            byte[] ipByteArray = new byte[ipSplit.length]; // iPV4 is always 32 bits so we'll need 4 bytes
+            for (int i = 0; i < ipSplit.length; i++)
+            {
+                ipByteArray[i] = (byte) Integer.parseInt(ipSplit[i]);
+            }
+            ipAddress = InetAddress.getByAddress(ipByteArray);
+        }
+        // here I shoulkd throw an exception if no ip is provided
+    }
+
+    public static byte[] BuildQueryHeader()
     {
         byte[] header = new byte[12]; // note I could use a bytebuffer instead clem what do you think
 
@@ -73,8 +126,7 @@ public class DnsClient
         header[0] = (byte) ((randomID >> 8) & 0xFF);
         header[1] = (byte) (randomID & 0xFF);
 
-        // Flags: 0x0100 → recursion desired
-        header[2] = 0x01;
+        header[2] = 0x01; // we want recursion
         header[3] = 0x00;
 
         header[4] = 0x00; // qdcount
@@ -127,12 +179,6 @@ public class DnsClient
         question.write(0x01);
 
         return question.toByteArray();
-    }
-
-    public static void ParseAnswer(byte[] receiveData)
-    {
-
-
     }
 }
 
