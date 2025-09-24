@@ -29,8 +29,44 @@ public class DnsClient
 
         // End of parsing args implementation note annabelle je devrais move ca dans une methode separee
 
-        // Build header
-        byte[] header = new byte[12];
+        byte[] header = BuildHeader();
+
+        // Beginning DNS Questions
+        byte[] questionBytes = BuildDNSQuestion(sServerName, sQueryType);
+
+        // header + question
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
+        outputStream.write(header);
+        outputStream.write(questionBytes);
+
+        sendData = outputStream.toByteArray();
+
+        // Send the data
+        DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, ipAddress, 53);
+        clientSocket.send(sendPacket);
+        System.out.printf("DnsClient sending request for %s\nServer: %s\nRequest Type: %s\n", sServerName, sIp, sQueryType);
+
+        //Receive Data
+        DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+        clientSocket.receive(receivePacket);
+
+        // Interpret Data
+        ParseAnswer(receiveData);
+
+        //PRINTING RAW RESPONSE FOR TESTING PURPOSES
+        int length = receivePacket.getLength();
+        System.out.println("Received " + length + " bytes");
+        for (int i = 0; i < length; i++) {
+            System.out.printf("%02X ", receiveData[i]);
+            if ((i + 1) % 16 == 0) System.out.println();
+        }
+
+        clientSocket.close();
+    }
+
+    public static byte[] BuildHeader()
+    {
+        byte[] header = new byte[12]; // note I could use a bytebuffer instead clem what do you think
 
         Random random = new Random();
         int randomID = random.nextInt(0xFFFF); // 16 bits generated num
@@ -53,10 +89,11 @@ public class DnsClient
         header[10] = 0x00; // ar count
         header[11] = 0x00;
 
-        // End of build header
+        return header;
+    }
 
-        // Beginning DNS Questions
-        String[] serverNameParts = sServerName.split("\\.");
+    public static byte[] BuildDNSQuestion(String serverName, String queryType) throws IOException {
+        String[] serverNameParts = serverName.split("\\.");
         ByteArrayOutputStream question = new ByteArrayOutputStream();
 
         // Q_NAME
@@ -69,12 +106,12 @@ public class DnsClient
         question.write(0x00); // end of name translation
 
         // Q_TYPE
-        if (sQueryType.equals("-ns")) // name server
+        if (queryType.equals("-ns")) // name server
         {
             question.write(0x00);
             question.write(0x02);
         }
-        else if (sQueryType.equals("-mx")) // mail server
+        else if (queryType.equals("-mx")) // mail server
         {
             question.write(0x00);
             question.write(0x0f);
@@ -89,34 +126,13 @@ public class DnsClient
         question.write(0x00); // always 1
         question.write(0x01);
 
-        byte[] questionBytes = question.toByteArray();
+        return question.toByteArray();
+    }
 
-        // header + question
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
-        outputStream.write(header);
-        outputStream.write(questionBytes);
-
-        sendData = outputStream.toByteArray();
-
-        // Send the data
-        DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, ipAddress, 53);
-        clientSocket.send(sendPacket);
-        System.out.printf("DnsClient sending request for %s\nServer: %s\nRequest Type: %s\n", sServerName, sIp, sQueryType);
-
-        //Receive Data
-        DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-        clientSocket.receive(receivePacket);
+    public static void ParseAnswer(byte[] receiveData)
+    {
 
 
-        //PRINTING RAW RESPONSE FOR TESTING PURPOSES
-        int length = receivePacket.getLength();
-        System.out.println("Received " + length + " bytes");
-        for (int i = 0; i < length; i++) {
-            System.out.printf("%02X ", receiveData[i]);
-            if ((i + 1) % 16 == 0) System.out.println();
-        }
-
-        clientSocket.close();
     }
 }
 
