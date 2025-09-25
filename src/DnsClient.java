@@ -4,6 +4,7 @@ import java.util.*;
 
 public class DnsClient
 {
+    // Request Attributes
     static int iTimeout = 5;
     static int iMaxRetries = 3;
     static int iPort = 53;
@@ -11,6 +12,14 @@ public class DnsClient
     static String sIp = null;
     static String sServerName = null;
     static InetAddress ipAddress = null;
+
+    // Response Attributes
+    static int iRCode = 0;
+    static int answerCount = 0;
+    static int additionRecordsCount = 0;
+    static byte[] qName;
+    static byte[] qType = new byte[2];
+    static byte[] qClass = new byte[2];
 
     public static void main(String[] args) throws IOException
     {
@@ -41,9 +50,13 @@ public class DnsClient
         {
             try
             {
+                double t1 = System.currentTimeMillis();
                 clientSocket.send(sendPacket);
                 System.out.printf("DnsClient sending request for %s\nServer: %s\nRequest Type: %s\n", sServerName, sIp, sType);
                 clientSocket.receive(receivePacket);
+                double t2 = System.currentTimeMillis();
+                double elapsedTime = (t2 - t1) / 1000; // convert to seconds
+                System.out.printf("Response received after %f seconds (%d retries)", elapsedTime, tryCount);
                 break;
             }
             catch (SocketTimeoutException e)
@@ -53,8 +66,15 @@ public class DnsClient
             }
         }
 
-        // Interpret Data TO-DO
-
+        if (tryCount == iMaxRetries)
+        {
+            System.out.printf("Request failed after %d tries.", tryCount);
+        }
+        else
+        {
+            // Interpret Data TO-DO
+            InterpretResponse(receiveData);
+        }
 
         //PRINTING RAW RESPONSE FOR TESTING PURPOSES
         int length = receivePacket.getLength();
@@ -121,6 +141,10 @@ public class DnsClient
     {
         byte[] header = new byte[12]; // note I could use a bytebuffer instead clem what do you think
 
+        // ID                QR OP   AA TC RD RA Z   RCODE QDCOUNT          ANCOUNT          NSCOUNT          ARCOUNT
+        // xxxxxxxx xxxxxxxx 0  0000 0  0  1  0  000 0000  0000000000000001 0000000000000000 0000000000000000 0000000000000000
+        // xxxxxxxx xxxxxxxx 00000001 00000000 00000000 00000001 00000000 00000000 00000000 00000000 00000000 00000000
+
         Random random = new Random();
         int randomID = random.nextInt(0xFFFF); // 16 bits generated num
         header[0] = (byte) ((randomID >> 8) & 0xFF);
@@ -179,6 +203,22 @@ public class DnsClient
         question.write(0x01);
 
         return question.toByteArray();
+    }
+
+    public static void InterpretResponse(byte[] receiveData)
+    {
+        // Header
+
+        // ID                QR OP   AA TC RD RA Z   RCODE QDCOUNT          ANCOUNT          NSCOUNT          ARCOUNT
+        // xxxxxxxx xxxxxxxx 0  0000 0  0  1  0  000 0000  0000000000000001 0000000000000000 0000000000000000 0000000000000000
+        byte[] responseHeader = Arrays.copyOfRange(receiveData, 0, 12);
+        Boolean bIsAuthoritative = (responseHeader[2] & 0x04) != 0; // AA flag in 3rd byte 3rd bit
+        Boolean bWasTruncated = (responseHeader[2] & 0x02) != 0; // TXC flag 3rd byte 2nd bit
+        iRCode = responseHeader[3] & 0x0F; // error message
+        answerCount = ((responseHeader[6] & 0xFF) << 8) | (responseHeader[7] & 0xFF); // combine 7 & 8 bytes
+        additionRecordsCount = ((responseHeader[10] & 0xFF) << 8) | (responseHeader[11] & 0xFF); // combine 9 and 10th bytes
+
+        // Question
     }
 }
 
