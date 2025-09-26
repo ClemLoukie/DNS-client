@@ -91,7 +91,9 @@ public class UDPClient {
                     else index +=2;
                 }
 
-                int type = ((receiveData[index++] & 0xFF) << 8) | (receiveData[index] & 0xFF); // because 16 bit
+                int type = ((receiveRecords[index++] & 0xFF) << 8) | (receiveRecords[index++] & 0xFF); // because 16 bit
+                long seconds_cache;
+                String auth_status;
                 switch (type) {
                     case 1:
                         /***
@@ -100,17 +102,16 @@ public class UDPClient {
                          * then RDATA (index+8) is the IP address (four octets).
                          */
                         index += 2;
-                        long seconds_cache = (((receiveData[index++] & 0xFF) << 24) | ((receiveData[index++] & 0xFF) << 16) | ((receiveData[index++] & 0xFF) << 8) | ((receiveData[index++] & 0xFF))); // four octets
+                        seconds_cache = (((long) (receiveRecords[index++] & 0xFF) << 24) | ((long) (receiveRecords[index++] & 0xFF) << 16) | ((long) (receiveRecords[index++] & 0xFF) << 8) | ((receiveRecords[index++] & 0xFF))); // four octets
 
                         index += 2;
                         int[] ip_adress = new int[4];
-                        ip_adress[0] = receiveData[index] & 0xFF;
-                        ip_adress[1] = receiveData[++index] & 0xFF;
-                        ip_adress[2] = receiveData[++index] & 0xFF;
-                        ip_adress[3] = receiveData[++index] & 0xFF;
+                        ip_adress[0] = receiveRecords[index] & 0xFF;
+                        ip_adress[1] = receiveRecords[++index] & 0xFF;
+                        ip_adress[2] = receiveRecords[++index] & 0xFF;
+                        ip_adress[3] = receiveRecords[++index] & 0xFF;
 
-                        String auth_status;
-                        if ((receiveData[2] & 0x04) == 0x04) auth_status = "auth" ;
+                        if ((receiveRecords[2] & 0x04) == 0x04) auth_status = "auth" ;
                         else auth_status = "nonauth"; // contained in header as 3 LSbit in second byte
 
                         System.out.println("IP\t "+ ip_adress[0] + "." + ip_adress[1] + "." + ip_adress[2] + "." + ip_adress[3] + " \t "+ seconds_cache +" \t " + auth_status);
@@ -121,7 +122,14 @@ public class UDPClient {
                          * If the TYPE is 0x0002, for a NS (name server) record,
                          * then this is the name of the server specified using the same format as the QNAME field.
                          */
-                        System.out.println("MX \t [alias] \t [pref] \t [seconds can cache] \t [auth | nonauth]");
+                        index += 2;
+                        seconds_cache = (((long) (receiveRecords[index++] & 0xFF) << 24) | ((long) (receiveRecords[index++] & 0xFF) << 16) | ((long) (receiveRecords[index++] & 0xFF) << 8) | ((receiveRecords[index++] & 0xFF))); // four octets
+
+                        if ((receiveData[2] & 0x04) == 0x04) auth_status = "auth" ;
+                        else auth_status = "nonauth"; // contained in header as 3 LSbit in second byte
+
+                        int pref = ((receiveRecords[index++] & 0xFF) << 8) | (receiveRecords[index] & 0xFF);
+                        System.out.println("MX \t [alias] \t " + pref + " \t "+ seconds_cache +" \t "+ auth_status);
                         break;
                     case 5:
                         /***
