@@ -103,8 +103,6 @@ public class UDPClient {
 
                 int type = ((receiveRecords[index++] & 0xFF) << 8) | (receiveRecords[index++] & 0xFF); // because 16 bit
 
-                System.out.println(x + " record " + type);
-
                 // index set to CLASS
 
                 String alias = "TBD";
@@ -128,58 +126,50 @@ public class UDPClient {
 
                         int[] ip_adress = new int[4];
                         ip_adress[0] = receiveRecords[index] & 0xFF;
-                        ip_adress[1] = receiveRecords[++index] & 0xFF;
-                        ip_adress[2] = receiveRecords[++index] & 0xFF;
-                        ip_adress[3] = receiveRecords[++index] & 0xFF;
+                        ip_adress[1] = receiveRecords[index+1] & 0xFF;
+                        ip_adress[2] = receiveRecords[index+1] & 0xFF;
+                        ip_adress[3] = receiveRecords[index+1] & 0xFF;
 
                         System.out.println("IP\t "+ ip_adress[0] + "." + ip_adress[1] + "." + ip_adress[2] + "." + ip_adress[3] + " \t "+ seconds_cache +" \t " + auth_status);
                         break;
 
                     case 2:
-                        /***
+                        /*
                          * If the TYPE is 0x0002, for a NS (name server) record,
                          * then this is the name of the server specified using the same format as the QNAME field.
+                         * Here we start in RDATA
                          */
-                        System.out.println("NS \t "+ alias +" \t " + seconds_cache + " \t " + auth_status);
+
+                        System.out.println("NS \t "+ QNAME(index,receiveRecords) +" \t " + seconds_cache + " \t " + auth_status);
                         break;
 
                     case 5:
-                        /***
+                        /*
                          * If the TYPE
                          * is 0x005, for CNAME records, then this is the name of the alias.
                          */
-                        System.out.println("CNAME \t "+ alias +" \t " + seconds_cache + " \t " + auth_status);
+                        System.out.println("CNAME \t "+ QNAME(index,receiveRecords) +" \t " + seconds_cache + " \t " + auth_status);
                         break;
 
                     case 15:
-                        /***
+                        /*
                          * If the type is 0x000f for MX (mail
                          * server) records, then RDATA has the format
                          */
-                        index+= RDLENGTH;
-                        int pref = ((receiveRecords[index++] & 0xFF) << 8) | (receiveRecords[index] & 0xFF);
-                        System.out.println("MX \t " + alias +" \t " + pref + " \t "+ seconds_cache +" \t "+ auth_status);
+                        int pref = ((receiveRecords[index] & 0xFF) << 8) | (receiveRecords[index + 1] & 0xFF);
+                        System.out.println("MX \t " + QNAME(index + 2,receiveRecords) +" \t " + pref + " \t "+ seconds_cache +" \t "+ auth_status);
                         break;
                 }
-                index ++;
-
-                // Exchange is formated like name
-                if ((receiveRecords[index] & 0xC0) == 0xC0) index += 2; // if NAME is pointer
-                else{
-                    while (receiveRecords[index] != 0 && (receiveRecords[index] & 0xC0) != 0xC0){
-                        int label_length = receiveRecords[index] & 0xFF; //
-                        index+= 1 + label_length;
-                    }
-                    if (receiveRecords[index] == 0) index++; // if sequence of labels ending with a zero octet
-                    else index +=2; // if sequence of labels ending with a pointer
-                }
+                index += RDLENGTH; // index must maintain RDstart
             }
         }
 
         // step 5: print additional records
-        int ARCOUNT = ((receiveData[10] & 0xFF) << 8) | (receiveData[11] & 0xFF); // chat
+        int ARCOUNT = ((receiveData[10] & 0xFF) << 8) | (receiveData[11] & 0xFF);
         if (ARCOUNT >= 1) {
-            System.out.println("***Additional Section (" + ARCOUNT + " records)***");
+            if (ARCOUNT == 1) System.out.println("***Additional Section (" + ARCOUNT + " record)***");
+            else System.out.println("***Additional Section (" + ARCOUNT + " records)***");
+            
             for (int x = 0; x < ARCOUNT; x++) {
 
             }
@@ -192,6 +182,24 @@ public class UDPClient {
         //step 6: Error handling
     }
 
+    /*
+    This function reads bits formated like QNAME
+     */
+    public static String QNAME(int index, byte[] receiveRecords){
+        StringBuilder name = new StringBuilder();
+        if ((receiveRecords[index] & 0xC0) == 0xC0){} // if NAME is pointer
+        else{
+            while (receiveRecords[index] != 0 && (receiveRecords[index] & 0xC0) != 0xC0){
+                int label_length = receiveRecords[index++] & 0xFF; //
+                for (int y = 0; y < label_length; y++){
+                    name.append((char) (receiveRecords[index++] & 0xFF));
+                }
+                if (receiveRecords[index] != 0 && (receiveRecords[index] & 0xC0) != 0xC0) name.append(".");
+            }
+            if ((receiveRecords[index] & 0xC0) == 0xC0) index+=2; // if sequence of labels ending with a zero octet
+        }
+        return name.toString();
+    }
 
 }
 
