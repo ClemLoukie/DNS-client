@@ -48,7 +48,7 @@ public class UDPClient {
 
         // step 0: variable initiation TO BE MOVED
         long timer = System.nanoTime();
-        timer -= System.nanoTime();
+        timer = System.nanoTime() - timer;
 
         int num_retries = 0;
         // TO THE SEND AREA
@@ -67,82 +67,111 @@ public class UDPClient {
         System.out.println("Response received after "+ timer+" seconds (" + num_retries + " retries)");
 
         // step 4: print
-        int ANCOUNT = ((receiveData[6] & 0xFF) << 8) | (receiveData[7] & 0xFF); // chat
+        int ANCOUNT = ((receiveData[6] & 0xFF) << 8) | (receiveData[7] & 0xFF); // number of records + to change
         if (ANCOUNT >= 1) {
-            System.out.println("***Answer Section (" + ANCOUNT + " records)***");
+            if (ANCOUNT == 1) System.out.println("***Answer Section (" + ANCOUNT + " record)***");
+            else System.out.println("***Answer Section (" + ANCOUNT + " records)***");
+
             // We must reach the records section
-            byte[] receiveRecords = Arrays.copyOfRange(receiveData, 12, receiveData.length);
-            int index = 0;
-            while (receiveRecords[index] != 0) index++;
-            index += 4 + 1; // account for QTYPE and QCLASS + start of first record
+            byte[] receiveRecords = Arrays.copyOfRange(receiveData, 12, receiveData.length); // Reads EVERYTHING except first head
+            int index = 0; // index used to traverse DNS
+            while (receiveRecords[index++] != 0);
+            index += 2 + 2 ; // account for QTYPE and QCLASS. This is set to the index of the first record
+
             for (int x = 0; x < ANCOUNT; x++) {
                 // We must move past the name and ACCOUNT FOR COMPRESSION
-                /***
+                /*
                  * • a sequence of labels ending with a zero octet;
                  * • a pointer; -> starts with 11xxxxxx (top 2 bits
                  * • a sequence of labels ending with a pointer.
                  */
-                if ((receiveRecords[index] >>>6)  == 3) index += 2;
+                /*
+                 * Since
+                 * labels may have varying length, each label is preceded by a single byte giving the number of ASCII
+                 * characters used in the label, and then each character is coded using 8-bit ASCII. To signal the end
+                 * of a domain name, one last byte is written with value 0.
+                 */
+                if ((receiveRecords[index] & 0xC0) == 0xC0) index += 2; // if NAME is pointer
                 else{
-                    while (receiveRecords[index] != 0 || (receiveRecords[index] >>>6)  != 3)){
-                        index++;
+                    while (receiveRecords[index] != 0 && (receiveRecords[index] & 0xC0) != 0xC0){
+                        int label_length = receiveRecords[index] & 0xFF; //
+                        index+= 1 + label_length;
                     }
-                    if (receiveRecords[index] == 0) index++;
-                    else index +=2;
+                    if (receiveRecords[index] == 0) index++; // if sequence of labels ending with a zero octet
+                    else index +=2; // if sequence of labels ending with a pointer
                 }
 
                 int type = ((receiveRecords[index++] & 0xFF) << 8) | (receiveRecords[index++] & 0xFF); // because 16 bit
-                long seconds_cache;
+
+                System.out.println(x + " record " + type);
+
+                // index set to CLASS
+
+                String alias = "TBD";
+
                 String auth_status;
+                if ((receiveData[2] & 0x04) == 0x04) auth_status = "auth" ;
+                else auth_status = "nonauth"; // contained in header as 3 LSbit in second byte
+
+                index += 2;
+                long seconds_cache;
+                seconds_cache = (((long) (receiveRecords[index++] & 0xFF) << 24) | ((long) (receiveRecords[index++] & 0xFF) << 16) | ((long) (receiveRecords[index++] & 0xFF) << 8) | ((receiveRecords[index++] & 0xFF))); // four octets
+
+                int RDLENGTH = ((receiveRecords[index++] & 0xFF) << 8) | (receiveRecords[index++] & 0xFF); // because 16 bit
+
                 switch (type) {
                     case 1:
                         /***
                          * If TYPE is 0x0001, for an A (IP address) record,
-                         * then TTL (index +4)
                          * then RDATA (index+8) is the IP address (four octets).
                          */
-                        index += 2;
-                        seconds_cache = (((long) (receiveRecords[index++] & 0xFF) << 24) | ((long) (receiveRecords[index++] & 0xFF) << 16) | ((long) (receiveRecords[index++] & 0xFF) << 8) | ((receiveRecords[index++] & 0xFF))); // four octets
 
-                        index += 2;
                         int[] ip_adress = new int[4];
                         ip_adress[0] = receiveRecords[index] & 0xFF;
                         ip_adress[1] = receiveRecords[++index] & 0xFF;
                         ip_adress[2] = receiveRecords[++index] & 0xFF;
                         ip_adress[3] = receiveRecords[++index] & 0xFF;
 
-                        if ((receiveRecords[2] & 0x04) == 0x04) auth_status = "auth" ;
-                        else auth_status = "nonauth"; // contained in header as 3 LSbit in second byte
-
                         System.out.println("IP\t "+ ip_adress[0] + "." + ip_adress[1] + "." + ip_adress[2] + "." + ip_adress[3] + " \t "+ seconds_cache +" \t " + auth_status);
                         break;
-                        // then exit strategy
+
                     case 2:
                         /***
                          * If the TYPE is 0x0002, for a NS (name server) record,
                          * then this is the name of the server specified using the same format as the QNAME field.
                          */
-                        index += 2;
-                        seconds_cache = (((long) (receiveRecords[index++] & 0xFF) << 24) | ((long) (receiveRecords[index++] & 0xFF) << 16) | ((long) (receiveRecords[index++] & 0xFF) << 8) | ((receiveRecords[index++] & 0xFF))); // four octets
-
-                        if ((receiveData[2] & 0x04) == 0x04) auth_status = "auth" ;
-                        else auth_status = "nonauth"; // contained in header as 3 LSbit in second byte
-
-                        int pref = ((receiveRecords[index++] & 0xFF) << 8) | (receiveRecords[index] & 0xFF);
-                        System.out.println("MX \t [alias] \t " + pref + " \t "+ seconds_cache +" \t "+ auth_status);
+                        System.out.println("NS \t "+ alias +" \t " + seconds_cache + " \t " + auth_status);
                         break;
+
                     case 5:
                         /***
                          * If the TYPE
                          * is 0x005, for CNAME records, then this is the name of the alias.
                          */
+                        System.out.println("CNAME \t "+ alias +" \t " + seconds_cache + " \t " + auth_status);
+                        break;
+
                     case 15:
                         /***
                          * If the type is 0x000f for MX (mail
                          * server) records, then RDATA has the format
                          */
-                        System.out.println("NS \t [alias] \t [seconds can cache] \t [auth | nonauth]");
+                        index+= RDLENGTH;
+                        int pref = ((receiveRecords[index++] & 0xFF) << 8) | (receiveRecords[index] & 0xFF);
+                        System.out.println("MX \t " + alias +" \t " + pref + " \t "+ seconds_cache +" \t "+ auth_status);
                         break;
+                }
+                index ++;
+
+                // Exchange is formated like name
+                if ((receiveRecords[index] & 0xC0) == 0xC0) index += 2; // if NAME is pointer
+                else{
+                    while (receiveRecords[index] != 0 && (receiveRecords[index] & 0xC0) != 0xC0){
+                        int label_length = receiveRecords[index] & 0xFF; //
+                        index+= 1 + label_length;
+                    }
+                    if (receiveRecords[index] == 0) index++; // if sequence of labels ending with a zero octet
+                    else index +=2; // if sequence of labels ending with a pointer
                 }
             }
         }
