@@ -105,10 +105,10 @@ public class DnsClient
                     iPort = Integer.parseInt(args[++i]);
                     break;
                 case "-mx":
-                    sType = "-mx";
+                    sType = "MX";
                     break;
                 case "-ns":
-                    sType = "-ns";
+                    sType = "NS";
                     break;
                 default:
                     if (args[i].startsWith("@") && sIp == null)
@@ -205,46 +205,51 @@ public class DnsClient
         return question.toByteArray();
     }
 
-    public static void InterpretResponse(byte[] receiveData)
-    {
-        // Header
+//    public static void InterpretResponse(byte[] receiveData)
+//    {
+//        // Header
+//
+//        // ID                QR OP   AA TC RD RA Z   RCODE QDCOUNT          ANCOUNT          NSCOUNT          ARCOUNT
+//        // xxxxxxxx xxxxxxxx 0  0000 0  0  1  0  000 0000  0000000000000001 0000000000000000 0000000000000000 0000000000000000
+//        byte[] responseHeader = Arrays.copyOfRange(receiveData, 0, 12);
+//        Boolean bIsAuthoritative = (responseHeader[2] & 0x04) != 0; // AA flag in 3rd byte 3rd bit
+//        Boolean bWasTruncated = (responseHeader[2] & 0x02) != 0; // TXC flag 3rd byte 2nd bit
+//        iRCode = responseHeader[3] & 0x0F; // error message
+//        answerCount = ((responseHeader[6] & 0xFF) << 8) | (responseHeader[7] & 0xFF); // combine 7 & 8 bytes
+//        additionRecordsCount = ((responseHeader[10] & 0xFF) << 8) | (responseHeader[11] & 0xFF); // combine 9 and 10th bytes
+//
+//        // Question
+//    }
 
-        // ID                QR OP   AA TC RD RA Z   RCODE QDCOUNT          ANCOUNT          NSCOUNT          ARCOUNT
-        // xxxxxxxx xxxxxxxx 0  0000 0  0  1  0  000 0000  0000000000000001 0000000000000000 0000000000000000 0000000000000000
-        byte[] responseHeader = Arrays.copyOfRange(receiveData, 0, 12);
-        Boolean bIsAuthoritative = (responseHeader[2] & 0x04) != 0; // AA flag in 3rd byte 3rd bit
-        Boolean bWasTruncated = (responseHeader[2] & 0x02) != 0; // TXC flag 3rd byte 2nd bit
-        iRCode = responseHeader[3] & 0x0F; // error message
-        answerCount = ((responseHeader[6] & 0xFF) << 8) | (responseHeader[7] & 0xFF); // combine 7 & 8 bytes
-        additionRecordsCount = ((responseHeader[10] & 0xFF) << 8) | (responseHeader[11] & 0xFF); // combine 9 and 10th bytes
-
-        // Question
-    }
-
-    public static void OutputBehaviour(byte[] receiveData, DatagramSocket clientSocket, String sQueryType, String sIP, String sServerName) throws IOException {
-
-        // step 0: variable initiation TO BE MOVED
-        long timer = System.nanoTime();
-        timer = System.nanoTime() - timer;
-
-        int num_retries = 0;
-        // TO THE SEND AREA
+    public static void InterpretResponse(byte[] receiveData) throws IOException {
 
         // step 1: receive response from server into a datagram packet
-        DatagramPacket p = new DatagramPacket(receiveData, receiveData.length);
-        clientSocket.receive(p);
-
-        // step 2: summarize query that has been sent (data on our side)
-        System.out.println("DnsClient sending request for " + sServerName); // [name]
-        System.out.println("Server: " + sIP); // [server IP]
-        System.out.println("Request type: " + sQueryType); // Qtype - [A | MX | NS]
+//        DatagramPacket p = new DatagramPacket(receiveData, receiveData.length);
+//        clientSocket.receive(p);
+//
+//        // step 2: summarize query that has been sent (data on our side)
+//        System.out.println("DnsClient sending request for " + sServerName); // [name]
+//        System.out.println("Server: " + sIP); // [server IP]
+//        System.out.println("Request type: " + sQueryType); // Qtype - [A | MX | NS]
 
         // step 3: redirect to STDOUT
         // I will establish a timer once the sending is set
-        System.out.println("Response received after "+ timer+" seconds (" + num_retries + " retries)");
+        //System.out.println("Response received after "+ timer +" seconds (" + tryCount + " retries)");
 
-        byte[] receiveRecords = Arrays.copyOfRange(receiveData, 12, receiveData.length); // Reads EVERYTHING except first head
-        int index = 0; // index used to traverse DNS
+        //step 1: Error handling
+        // Error code is in RCODE
+//
+//        if (ANCOUNT + ARCOUNT == 0){ // or RCODE ==3
+//            System.out.println("NOTFOUND");
+//        }
+
+        // byte[] receiveRecordsHEADER = Arrays.copyOfRange(receiveData, 0, 11); // Reads head
+
+//        System.out.println("ERROR /t Maximum number of retries " + tryCount + " exceeded");
+
+
+        //byte[] receiveRecords = Arrays.copyOfRange(receiveData, 12, receiveData.length); // Reads EVERYTHING except first head
+        int index = 12; // index used to traverse DNS
 
         // step 4: print
         int ANCOUNT = ((receiveData[6] & 0xFF) << 8) | (receiveData[7] & 0xFF); // number of records + to change
@@ -253,7 +258,7 @@ public class DnsClient
             else System.out.println("***Answer Section (" + ANCOUNT + " records)***");
 
             // We must reach the records section
-            while (receiveRecords[index++] != 0);
+            while (receiveData[index++] != 0);
             index += 2 + 2 ; // account for QTYPE and QCLASS. This is set to the index of the first record
 
             for (int x = 0; x < ANCOUNT; x++) {
@@ -269,17 +274,17 @@ public class DnsClient
                  * characters used in the label, and then each character is coded using 8-bit ASCII. To signal the end
                  * of a domain name, one last byte is written with value 0.
                  */
-                if ((receiveRecords[index] & 0xC0) == 0xC0) index += 2; // if NAME is pointer
+                if ((receiveData[index] & 0xC0) == 0xC0) index += 2; // if NAME is pointer
                 else{
-                    while (receiveRecords[index] != 0 && (receiveRecords[index] & 0xC0) != 0xC0){
-                        int label_length = receiveRecords[index] & 0xFF; //
+                    while (receiveData[index] != 0 && (receiveData[index] & 0xC0) != 0xC0){
+                        int label_length = receiveData[index] & 0xFF; //
                         index+= 1 + label_length;
                     }
-                    if (receiveRecords[index] == 0) index++; // if sequence of labels ending with a zero octet
+                    if (receiveData[index] == 0) index++; // if sequence of labels ending with a zero octet
                     else index +=2; // if sequence of labels ending with a pointer
                 }
 
-                int type = ((receiveRecords[index++] & 0xFF) << 8) | (receiveRecords[index++] & 0xFF); // because 16 bit
+                int type = ((receiveData[index++] & 0xFF) << 8) | (receiveData[index++] & 0xFF); // because 16 bit
 
                 // index set to CLASS
 
@@ -291,9 +296,9 @@ public class DnsClient
 
                 index += 2;
                 long seconds_cache;
-                seconds_cache = (((long) (receiveRecords[index++] & 0xFF) << 24) | ((long) (receiveRecords[index++] & 0xFF) << 16) | ((long) (receiveRecords[index++] & 0xFF) << 8) | ((receiveRecords[index++] & 0xFF))); // four octets
+                seconds_cache = (((long) (receiveData[index++] & 0xFF) << 24) | ((long) (receiveData[index++] & 0xFF) << 16) | ((long) (receiveData[index++] & 0xFF) << 8) | ((receiveData[index++] & 0xFF))); // four octets
 
-                int RDLENGTH = ((receiveRecords[index++] & 0xFF) << 8) | (receiveRecords[index++] & 0xFF); // because 16 bit
+                int RDLENGTH = ((receiveData[index++] & 0xFF) << 8) | (receiveData[index++] & 0xFF); // because 16 bit
 
                 switch (type) {
                     case 1:
@@ -303,10 +308,10 @@ public class DnsClient
                          */
 
                         int[] ip_adress = new int[4];
-                        ip_adress[0] = receiveRecords[index] & 0xFF;
-                        ip_adress[1] = receiveRecords[index+1] & 0xFF;
-                        ip_adress[2] = receiveRecords[index+1] & 0xFF;
-                        ip_adress[3] = receiveRecords[index+1] & 0xFF;
+                        ip_adress[0] = receiveData[index] & 0xFF;
+                        ip_adress[1] = receiveData[index+1] & 0xFF;
+                        ip_adress[2] = receiveData[index+2] & 0xFF;
+                        ip_adress[3] = receiveData[index+3] & 0xFF;
 
                         System.out.println("IP\t "+ ip_adress[0] + "." + ip_adress[1] + "." + ip_adress[2] + "." + ip_adress[3] + " \t "+ seconds_cache +" \t " + auth_status);
                         break;
@@ -318,7 +323,7 @@ public class DnsClient
                          * Here we start in RDATA
                          */
 
-                        System.out.println("NS \t "+ QNAME(index,receiveRecords) +" \t " + seconds_cache + " \t " + auth_status);
+                        System.out.println("NS \t "+ QNAME(index,receiveData) +" \t " + seconds_cache + " \t " + auth_status);
                         break;
 
                     case 5:
@@ -326,7 +331,7 @@ public class DnsClient
                          * If the TYPE
                          * is 0x005, for CNAME records, then this is the name of the alias.
                          */
-                        System.out.println("CNAME \t "+ QNAME(index,receiveRecords) +" \t " + seconds_cache + " \t " + auth_status);
+                        System.out.println("CNAME \t "+ QNAME(index,receiveData) +" \t " + seconds_cache + " \t " + auth_status);
                         break;
 
                     case 15:
@@ -334,8 +339,8 @@ public class DnsClient
                          * If the type is 0x000f for MX (mail
                          * server) records, then RDATA has the format
                          */
-                        int pref = ((receiveRecords[index] & 0xFF) << 8) | (receiveRecords[index + 1] & 0xFF);
-                        System.out.println("MX \t " + QNAME(index + 2,receiveRecords) +" \t " + pref + " \t "+ seconds_cache +" \t "+ auth_status);
+                        int pref = ((receiveData[index] & 0xFF) << 8) | (receiveData[index + 1] & 0xFF);
+                        System.out.println("MX \t " + QNAME(index + 2,receiveData) +" \t " + pref + " \t "+ seconds_cache +" \t "+ auth_status);
                         break;
                 }
                 index += RDLENGTH; // index must maintain RDstart
@@ -361,17 +366,17 @@ public class DnsClient
                  * characters used in the label, and then each character is coded using 8-bit ASCII. To signal the end
                  * of a domain name, one last byte is written with value 0.
                  */
-                if ((receiveRecords[index] & 0xC0) == 0xC0) index += 2; // if NAME is pointer
+                if ((receiveData[index] & 0xC0) == 0xC0) index += 2; // if NAME is pointer
                 else{
-                    while (receiveRecords[index] != 0 && (receiveRecords[index] & 0xC0) != 0xC0){
-                        int label_length = receiveRecords[index] & 0xFF; //
+                    while (receiveData[index] != 0 && (receiveData[index] & 0xC0) != 0xC0){
+                        int label_length = receiveData[index] & 0xFF; //
                         index+= 1 + label_length;
                     }
-                    if (receiveRecords[index] == 0) index++; // if sequence of labels ending with a zero octet
+                    if (receiveData[index] == 0) index++; // if sequence of labels ending with a zero octet
                     else index +=2; // if sequence of labels ending with a pointer
                 }
 
-                int type = ((receiveRecords[index++] & 0xFF) << 8) | (receiveRecords[index++] & 0xFF); // because 16 bit
+                int type = ((receiveData[index++] & 0xFF) << 8) | (receiveData[index++] & 0xFF); // because 16 bit
 
                 // index set to CLASS
 
@@ -383,9 +388,9 @@ public class DnsClient
 
                 index += 2;
                 long seconds_cache;
-                seconds_cache = (((long) (receiveRecords[index++] & 0xFF) << 24) | ((long) (receiveRecords[index++] & 0xFF) << 16) | ((long) (receiveRecords[index++] & 0xFF) << 8) | ((receiveRecords[index++] & 0xFF))); // four octets
+                seconds_cache = (((long) (receiveData[index++] & 0xFF) << 24) | ((long) (receiveData[index++] & 0xFF) << 16) | ((long) (receiveData[index++] & 0xFF) << 8) | ((receiveData[index++] & 0xFF))); // four octets
 
-                int RDLENGTH = ((receiveRecords[index++] & 0xFF) << 8) | (receiveRecords[index++] & 0xFF); // because 16 bit
+                int RDLENGTH = ((receiveData[index++] & 0xFF) << 8) | (receiveData[index++] & 0xFF); // because 16 bit
 
                 switch (type) {
                     case 1:
@@ -395,10 +400,10 @@ public class DnsClient
                          */
 
                         int[] ip_adress = new int[4];
-                        ip_adress[0] = receiveRecords[index] & 0xFF;
-                        ip_adress[1] = receiveRecords[index+1] & 0xFF;
-                        ip_adress[2] = receiveRecords[index+1] & 0xFF;
-                        ip_adress[3] = receiveRecords[index+1] & 0xFF;
+                        ip_adress[0] = receiveData[index] & 0xFF;
+                        ip_adress[1] = receiveData[index+1] & 0xFF;
+                        ip_adress[2] = receiveData[index+2] & 0xFF;
+                        ip_adress[3] = receiveData[index+3] & 0xFF;
 
                         System.out.println("IP\t "+ ip_adress[0] + "." + ip_adress[1] + "." + ip_adress[2] + "." + ip_adress[3] + " \t "+ seconds_cache +" \t " + auth_status);
                         break;
@@ -410,7 +415,7 @@ public class DnsClient
                          * Here we start in RDATA
                          */
 
-                        System.out.println("NS \t "+ QNAME(index,receiveRecords) +" \t " + seconds_cache + " \t " + auth_status);
+                        System.out.println("NS \t "+ QNAME(index,receiveData) +" \t " + seconds_cache + " \t " + auth_status);
                         break;
 
                     case 5:
@@ -418,7 +423,7 @@ public class DnsClient
                          * If the TYPE
                          * is 0x005, for CNAME records, then this is the name of the alias.
                          */
-                        System.out.println("CNAME \t "+ QNAME(index,receiveRecords) +" \t " + seconds_cache + " \t " + auth_status);
+                        System.out.println("CNAME \t "+ QNAME(index,receiveData) +" \t " + seconds_cache + " \t " + auth_status);
                         break;
 
                     case 15:
@@ -426,43 +431,37 @@ public class DnsClient
                          * If the type is 0x000f for MX (mail
                          * server) records, then RDATA has the format
                          */
-                        int pref = ((receiveRecords[index] & 0xFF) << 8) | (receiveRecords[index + 1] & 0xFF);
-                        System.out.println("MX \t " + QNAME(index + 2,receiveRecords) +" \t " + pref + " \t "+ seconds_cache +" \t "+ auth_status);
+                        int pref = ((receiveData[index] & 0xFF) << 8) | (receiveData[index + 1] & 0xFF);
+                        System.out.println("MX \t " + QNAME(index + 2,receiveData) +" \t " + pref + " \t "+ seconds_cache +" \t "+ auth_status);
                         break;
                 }
                 index += RDLENGTH; // index must maintain RDstart
             }
         }
-
-        //step 6: Error handling
-        // Error code is in RCODE
-
-        if (ANCOUNT + ARCOUNT == 0){ // or RCODE ==3
-            System.out.println("NOTFOUND");
-        }
-
-        // byte[] receiveRecordsHEADER = Arrays.copyOfRange(receiveData, 0, 11); // Reads head
-
-        System.out.println("ERROR /t Maximum number of retries " + num_retries + " exceeded");
-
     }
 
     /*
     This function reads bits formated like QNAME
      */
-    public static String QNAME(int index, byte[] receiveRecords){
+    public static String QNAME(int index, byte[] receiveData){
+        int local_index = index; // initialize the traversal at the current index
         StringBuilder name = new StringBuilder();
-        if ((receiveRecords[index] & 0xC0) == 0xC0){} // if NAME is pointer
-        else{
-            while (receiveRecords[index] != 0 && (receiveRecords[index] & 0xC0) != 0xC0){
-                int label_length = receiveRecords[index++] & 0xFF; //
-                for (int y = 0; y < label_length; y++){
-                    name.append((char) (receiveRecords[index++] & 0xFF));
-                }
-                if (receiveRecords[index] != 0 && (receiveRecords[index] & 0xC0) != 0xC0) name.append(".");
+
+        while ( ((receiveData[local_index] & 0xC0) == 0xC0) || (receiveData[local_index] != 0) ){ // while we have pointer or haven't met null terminator
+
+            if ((receiveData[local_index] & 0xC0) == 0xC0){ // if you meet a pointer
+                local_index = ( ((receiveData[local_index] & 0x3F) << 8) | (receiveData[local_index+1] & 0xFF) ) ;  // set index to pointer location (16 bit sequence
             }
-            if ((receiveRecords[index] & 0xC0) == 0xC0) index+=2; // if sequence of labels ending with a zero octet
+
+            while ( receiveData[local_index] != 0 && (receiveData[local_index] & 0xC0) != 0xC0 ){
+                int label_length = receiveData[local_index++] & 0xFF; //
+                for (int y = 0; y < label_length; y++){
+                    name.append((char) (receiveData[local_index++] & 0xFF));
+                }
+                if (receiveData[local_index] != 0) name.append(".");
+            }
         }
+
         return name.toString();
     }
 }
