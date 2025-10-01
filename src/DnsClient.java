@@ -72,7 +72,6 @@ public class DnsClient
         }
         else
         {
-            // Interpret Data TO-DO
             InterpretResponse(receiveData);
         }
 
@@ -182,12 +181,12 @@ public class DnsClient
         question.write(0x00); // end of name translation
 
         // Q_TYPE
-        if (queryType.equals("-ns")) // name server
+        if (queryType.equals("NS")) // name server
         {
             question.write(0x00);
             question.write(0x02);
         }
-        else if (queryType.equals("-mx")) // mail server
+        else if (queryType.equals("MX")) // mail server
         {
             question.write(0x00);
             question.write(0x0f);
@@ -268,12 +267,14 @@ public class DnsClient
                  * • a pointer; -> starts with 11xxxxxx (top 2 bits
                  * • a sequence of labels ending with a pointer.
                  */
+
                 /*
                  * Since
                  * labels may have varying length, each label is preceded by a single byte giving the number of ASCII
                  * characters used in the label, and then each character is coded using 8-bit ASCII. To signal the end
                  * of a domain name, one last byte is written with value 0.
                  */
+
                 if ((receiveData[index] & 0xC0) == 0xC0) index += 2; // if NAME is pointer
                 else{
                     while (receiveData[index] != 0 && (receiveData[index] & 0xC0) != 0xC0){
@@ -341,7 +342,7 @@ public class DnsClient
                          */
                         int pref = ((receiveData[index] & 0xFF) << 8) | (receiveData[index + 1] & 0xFF);
                         System.out.println("MX \t " + QNAME(index + 2,receiveData) +" \t " + pref + " \t "+ seconds_cache +" \t "+ auth_status);
-                        break;
+                    break;
                 }
                 index += RDLENGTH; // index must maintain RDstart
             }
