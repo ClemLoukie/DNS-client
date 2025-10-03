@@ -20,84 +20,81 @@ public class DnsClient
         byte[] sendData = new byte[1024];
         byte[] receiveData = new byte[1024];
 
-        try
+
+        String message =  ParseArguments(args, clientSocket); // parse arguments read flags
+
+        if (!message.isEmpty())
         {
-            ParseArguments(args, clientSocket); // parse arguments read flags
-        }
-        catch(IllegalArgumentException e)
-        {
-            System.out.println("Error: " + e.getMessage());
-            System.out.println("Correct usage : java DnsClient [-t timeout] [-r max-retries] [-p port] [-mx|-ns] @server name");
-        }
-        catch (UnknownHostException | SocketException e)
-        {
-            System.out.println("Error: " + e.getMessage());
-            e.printStackTrace();
-        }
-
-        byte[] queryHeader = BuildQueryHeader(); //build query header
-
-        byte[] questionBytes = BuildDNSQuestion(sServerName, sType); // build DNS question
-
-        // header + question
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
-        outputStream.write(queryHeader);
-        outputStream.write(questionBytes);
-
-        sendData = outputStream.toByteArray();
-
-        // Send the data
-        int tryCount = 0; // keep track of number of tries
-        DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, ipAddress, iPort);
-        DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);  //Receive Data
-
-        while (tryCount < iMaxRetries)
-        {
-            try
-            {
-                double t1 = System.currentTimeMillis();
-                clientSocket.send(sendPacket);
-                System.out.printf("DnsClient sending request for %s\nServer: %s\nRequest Type: %s\n", sServerName, sIp, sType);
-                clientSocket.receive(receivePacket);
-                double t2 = System.currentTimeMillis();
-                double elapsedTime = (t2 - t1) / 1000; // convert to seconds
-                System.out.printf("Response received after %f seconds (%d retries)\n", elapsedTime, tryCount);
-                break;
-            }
-            catch (SocketTimeoutException e)
-            {
-                tryCount++;
-                System.out.printf("Timeout reached, retry %d\n", tryCount);
-            }
-            catch (IOException e)
-            {
-                tryCount++;
-                System.out.printf("IO exception occured, retry %d\n", tryCount);
-            }
-        }
-
-        if (tryCount == iMaxRetries)
-        {
-            System.out.printf("Request failed after %d tries.", tryCount);
+            System.out.println("ERROR\t" + message);
         }
         else
         {
-            InterpretResponse(receiveData);
-        }
+            byte[] queryHeader = BuildQueryHeader(); //build query header
 
+            byte[] questionBytes = BuildDNSQuestion(sServerName, sType); // build DNS question
+
+            // header + question
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
+            outputStream.write(queryHeader);
+            outputStream.write(questionBytes);
+
+            sendData = outputStream.toByteArray();
+
+            // Send the data
+            int tryCount = 0; // keep track of number of tries
+            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, ipAddress, iPort);
+            DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);  //Receive Data
+
+            while (tryCount < iMaxRetries)
+            {
+                try
+                {
+                    double t1 = System.currentTimeMillis();
+                    clientSocket.send(sendPacket);
+                    System.out.printf("DnsClient sending request for %s\nServer: %s\nRequest Type: %s\n", sServerName, sIp, sType);
+                    clientSocket.receive(receivePacket);
+                    double t2 = System.currentTimeMillis();
+                    double elapsedTime = (t2 - t1) / 1000; // convert to seconds
+                    System.out.printf("Response received after %f seconds (%d retries)\n", elapsedTime, tryCount);
+                    break;
+                }
+                catch (SocketTimeoutException e)
+                {
+                    tryCount++;
+                    System.out.printf("Timeout reached, retry %d\n", tryCount);
+                }
+                catch (IOException e)
+                {
+                    tryCount++;
+                    System.out.printf("IO exception occured, retry %d\n", tryCount);
+                }
+            }
+
+            if (tryCount == iMaxRetries)
+            {
+                System.out.printf("Request failed after %d tries.\n", tryCount);
+            }
+            else
+            {
+                InterpretResponse(receiveData);
+            }
+        }
         clientSocket.close();
     }
 
-    public static void ParseArguments(String[] args, DatagramSocket clientSocket) throws UnknownHostException, SocketException, IllegalArgumentException
+    public static String ParseArguments(String[] args, DatagramSocket clientSocket) throws UnknownHostException, SocketException, IllegalArgumentException
     {
         if (args.length < 2)
         {
-            throw new IllegalArgumentException("Incorrect number of arguments. The ip address and domain name must be provided.");
+            return "Incorrect number of arguments. The ip address and domain name must be provided.";
         }
         else if (args.length > 9)
         {
-            throw new IllegalArgumentException("Too many arguments.");
+            return "Too many arguments.";
         }
+
+        Boolean hasMxFlag = false;
+        Boolean hasNsFlag = false;
 
         for (int i = 0; i < args.length; i++)
         {
@@ -110,7 +107,7 @@ public class DnsClient
                     }
                     catch(NumberFormatException e)
                     {
-                        throw new IllegalArgumentException("Illegal argument for the timeout value. Value must be an integer.");
+                        return "Illegal argument for the timeout value. Value must be an integer.";
                     }
                     break;
                 case "-r":
@@ -120,7 +117,7 @@ public class DnsClient
                     }
                     catch(NumberFormatException e)
                     {
-                        throw new IllegalArgumentException("Illegal argument for the maximum number of retries. Value must be an integer.");
+                        return "Illegal argument for the maximum number of retries. Value must be an integer.";
                     }
                     break;
                 case "-p":
@@ -130,14 +127,24 @@ public class DnsClient
                     }
                     catch(NumberFormatException e)
                     {
-                        throw new IllegalArgumentException("Illegal argument for the port number. Value must be an integer.");
+                        return "Illegal argument for the port number. Value must be an integer.";
                     }
                     break;
                 case "-mx":
                     sType = "MX";
+                    hasMxFlag = true;
+                    if (hasNsFlag)
+                    {
+                        return "Cannot specify both -mx and -ns query types.";
+                    }
                     break;
                 case "-ns":
                     sType = "NS";
+                    hasNsFlag = true;
+                    if (hasMxFlag)
+                    {
+                        return "Cannot specify both -mx and -ns query types.";
+                    }
                     break;
                 default:
                     if (args[i].startsWith("@") && sIp == null)
@@ -157,11 +164,11 @@ public class DnsClient
         }
         catch (SocketException e)
         {
-            throw new SocketException("Error occurred while creating or accessing the socket.");
+            return "Error occurred while creating or accessing the socket.";
         }
         catch (IllegalArgumentException e)
         {
-            throw new IllegalArgumentException("Timeout value cannot be negative.");
+            return "Timeout value cannot be negative.";
         }
 
         if (sIp != null)
@@ -178,17 +185,18 @@ public class DnsClient
             }
             catch (UnknownHostException e)
             {
-                throw new UnknownHostException("Unknown host.");
+                return "Unknown host.";
             }
         }
         else if (sIp == null)
         {
-            throw new IllegalArgumentException("No server IP address provided.");
+            return "No server IP address provided.";
         }
         else if (sServerName == null)
         {
-            throw new IllegalArgumentException("No server name provided.");
+            return "No server name provided.";
         }
+        return "";
     }
 
     public static byte[] BuildQueryHeader()
@@ -294,6 +302,11 @@ public class DnsClient
         int rCode = receiveData[3] & 0x0F;
         if (rCode != 0)
         {
+            if (rCode == 3)
+            {
+                System.out.println("NOTFOUND");
+                return;
+            }
             String errorMsg;
             switch (rCode)
             {
@@ -303,9 +316,6 @@ public class DnsClient
                 case 2:
                     errorMsg = "Server failure: the name server was unable to process this query due to a problem with the name server.";
                     break;
-                case 3:
-                    errorMsg = "Name error: Authoritative name server - The domain name referenced in the query does not exist.";
-                    break; // MOST COMMON ERROR
                 case 4:
                     errorMsg = "Not implemented: the name server does not support the requested kind of query.";
                     break;
@@ -316,7 +326,8 @@ public class DnsClient
                     errorMsg = "Unknown DNS error code: " + rCode;
                     break;
             }
-            throw new IOException(String.format("DNS query failed. Server replied with Rcode %d: %s", rCode, errorMsg));
+            System.out.println("ERROR\t" + errorMsg);
+            return;
         }
 
         //byte[] receiveRecords = Arrays.copyOfRange(receiveData, 12, receiveData.length); // Reads EVERYTHING except first head
