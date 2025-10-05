@@ -309,7 +309,7 @@ public class DnsClient
         //byte[] receiveRecords = Arrays.copyOfRange(receiveData, 12, receiveData.length); // Reads EVERYTHING except first head
         int index = 12; // index used to traverse DNS. starts after the header
 
-        // step 4: print
+        // step 1: print number of records
         int ANCOUNT = ((receiveData[6] & 0xFF) << 8) | (receiveData[7] & 0xFF); // number of records + to change
         if (ANCOUNT >= 1) {
             // unecessary: if (ANCOUNT == 1) System.out.println("***Answer Section (" + ANCOUNT + " record)***");
@@ -318,12 +318,6 @@ public class DnsClient
             // We must reach the records section
             while (receiveData[index++] != 0);
             index += 2; // skip qtype3
-
-            int QCLASS = ((receiveData[index] & 0xFF) << 8) | (receiveData[index+1] & 0xFF);
-            if (QCLASS != 1) { // shoudl only be 1
-                System.out.println("ERROR\t" + "Unknown response class. Only QCLASS 1 is supported.");
-                return;
-            }
             index += 2; // skip qclass
 
             //index += 2 + 2 ; // account for QTYPE and QCLASS. This is set to the index of the first record
@@ -357,6 +351,11 @@ public class DnsClient
                 int type = ((receiveData[index++] & 0xFF) << 8) | (receiveData[index++] & 0xFF); // because 16 bit
 
                 // index set to CLASS
+                int CLASS = ((receiveData[index] & 0xFF) << 8) | (receiveData[index+1] & 0xFF);
+                if (CLASS != 1) { // shoudl only be 1
+                    System.out.println("ERROR\t" + "Unknown response class. Only CLASS 1 is supported.");
+                    return;
+                }
 
                 String alias = "TBD";
 
@@ -449,6 +448,11 @@ public class DnsClient
                 int type = ((receiveData[index++] & 0xFF) << 8) | (receiveData[index++] & 0xFF); // because 16 bit
 
                 // index set to CLASS
+                int CLASS = ((receiveData[index] & 0xFF) << 8) | (receiveData[index+1] & 0xFF);
+                if (CLASS != 1) { // shoudl only be 1
+                    System.out.println("ERROR\t" + "Unknown response class. Only CLASS 1 is supported.");
+                    return;
+                }
 
                 String alias = "TBD";
 
