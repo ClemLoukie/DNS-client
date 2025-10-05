@@ -14,6 +14,4 @@ The client also supports configurable timeout, retries, and port options.
 # Usage 
 
 java DnsClient [-t timeout] [-r max-retries] [-p port] [-mx|-ns] @server name
--Server IP address is mandatory
--Server name is mandatory
--All other arguments are optionnal
+
