@@ -312,8 +312,8 @@ public class DnsClient
         // step 4: print
         int ANCOUNT = ((receiveData[6] & 0xFF) << 8) | (receiveData[7] & 0xFF); // number of records + to change
         if (ANCOUNT >= 1) {
-            if (ANCOUNT == 1) System.out.println("***Answer Section (" + ANCOUNT + " record)***");
-            else System.out.println("***Answer Section (" + ANCOUNT + " records)***");
+            // unecessary: if (ANCOUNT == 1) System.out.println("***Answer Section (" + ANCOUNT + " record)***");
+            System.out.println("***Answer Section (" + ANCOUNT + " records)***");
 
             // We must reach the records section
             while (receiveData[index++] != 0);
@@ -420,8 +420,8 @@ public class DnsClient
         // step 5: print additional records (make this a function - for report -)
         int ARCOUNT = ((receiveData[10] & 0xFF) << 8) | (receiveData[11] & 0xFF);
         if (ARCOUNT >= 1) {
-            if (ARCOUNT == 1) System.out.println("***Additional Section (" + ARCOUNT + " record)***");
-            else System.out.println("***Additional Section (" + ARCOUNT + " records)***");
+            // not necessary: if (ARCOUNT == 1) System.out.println("***Additional Section (" + ARCOUNT + " record)***");
+            System.out.println("***Additional Section (" + ARCOUNT + " records)***");
 
             for (int x = 0; x < ARCOUNT; x++) {
                 // We must move past the name and ACCOUNT FOR COMPRESSION
