@@ -1,7 +1,7 @@
 # DnsClient
 
 This project implements a simple DNS client in Java.  
-It constructs and sends DNS queries to a specified DNS server (e.g., 8.8.8.8) and parses the responses for A, NS, and MX records.  
+It constructs and sends DNS queries to a specified DNS server and parses the responses for A, NS, and MX records.  
 The client also supports configurable timeout, retries, and port options.
 
 ## Compilation Instructions
