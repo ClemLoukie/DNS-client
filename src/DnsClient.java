@@ -341,7 +341,16 @@ public class DnsClient
 
             // We must reach the records section
             while (receiveData[index++] != 0);
-            index += 2 + 2 ; // account for QTYPE and QCLASS. This is set to the index of the first record
+            index += 2; // skip qtype
+
+            int QCLASS = ((receiveData[index] & 0xFF) << 8) | (receiveData[index+1] & 0xFF);
+            if (QCLASS != 1) { // shoudl only be 1
+                System.out.println("ERROR\t" + "Unknown response class. Only QCLASS 1 is supported.");
+                return;
+            }
+            index += 2; // skip qclass
+
+            //index += 2 + 2 ; // account for QTYPE and QCLASS. This is set to the index of the first record
 
             for (int x = 0; x < ANCOUNT; x++) {
                 // We must move past the name and ACCOUNT FOR COMPRESSION
