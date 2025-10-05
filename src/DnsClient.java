@@ -269,30 +269,6 @@ public class DnsClient
 
     public static void InterpretResponse(byte[] receiveData) throws IOException {
 
-        // step 1: receive response from server into a datagram packet
-//        DatagramPacket p = new DatagramPacket(receiveData, receiveData.length);
-//        clientSocket.receive(p);
-//
-//        // step 2: summarize query that has been sent (data on our side)
-//        System.out.println("DnsClient sending request for " + sServerName); // [name]
-//        System.out.println("Server: " + sIP); // [server IP]
-//        System.out.println("Request type: " + sQueryType); // Qtype - [A | MX | NS]
-
-        // step 3: redirect to STDOUT
-        // I will establish a timer once the sending is set
-        //System.out.println("Response received after "+ timer +" seconds (" + tryCount + " retries)");
-
-        //step 1: Error handling
-        // Error code is in RCODE
-//
-//        if (ANCOUNT + ARCOUNT == 0){ // or RCODE ==3
-//            System.out.println("NOTFOUND");
-//        }
-
-        // byte[] receiveRecordsHEADER = Arrays.copyOfRange(receiveData, 0, 11); // Reads head
-
-//        System.out.println("ERROR /t Maximum number of retries " + tryCount + " exceeded");
-
         // error handling
         if (receiveData.length < 12)
         {
@@ -331,7 +307,7 @@ public class DnsClient
         }
 
         //byte[] receiveRecords = Arrays.copyOfRange(receiveData, 12, receiveData.length); // Reads EVERYTHING except first head
-        int index = 12; // index used to traverse DNS
+        int index = 12; // index used to traverse DNS. starts after the header
 
         // step 4: print
         int ANCOUNT = ((receiveData[6] & 0xFF) << 8) | (receiveData[7] & 0xFF); // number of records + to change
@@ -341,7 +317,7 @@ public class DnsClient
 
             // We must reach the records section
             while (receiveData[index++] != 0);
-            index += 2; // skip qtype
+            index += 2; // skip qtype3
 
             int QCLASS = ((receiveData[index] & 0xFF) << 8) | (receiveData[index+1] & 0xFF);
             if (QCLASS != 1) { // shoudl only be 1
@@ -367,6 +343,7 @@ public class DnsClient
                  * of a domain name, one last byte is written with value 0.
                  */
 
+                // skip name field
                 if ((receiveData[index] & 0xC0) == 0xC0) index += 2; // if NAME is pointer
                 else{
                     while (receiveData[index] != 0 && (receiveData[index] & 0xC0) != 0xC0){
